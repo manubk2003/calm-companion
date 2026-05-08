@@ -146,14 +146,19 @@ async function sendMessage(text) {
       })
     });
     const data = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here. Take a slow breath with me.";
+    if (data.error) {
+      thinking.remove();
+      addMsg("API error: " + data.error.message + " (Check your key in localStorage or re-enter)", 'assistant');
+      return;
+    }
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Hmm, I didn't get a response. Try again?";
     thinking.remove();
     addMsg(reply, 'assistant');
     messages.push({role: "assistant", content: reply});
     speak(reply);
   } catch(e) {
     thinking.remove();
-    addMsg("Connection issue. Remember: breathe in 4, hold 7, out 8. You're safe.", 'assistant');
+    addMsg("Connection issue: " + e.message + ". Remember: breathe in 4, hold 7, out 8.", 'assistant');
   }
 }
 

@@ -80,11 +80,15 @@ let recognition, speaking = false, apiKey, bestVoice = null;
 // Find the best natural voice available
 function findBestVoice() {
   const voices = speechSynthesis.getVoices();
-  // Prefer enhanced/premium female voices
+  // Prefer enhanced/premium voices (including Indian English)
   const preferred = [
-    'Samantha (Enhanced)', 'Samantha', 'Karen (Enhanced)', 'Karen',
-    'Moira (Enhanced)', 'Moira', 'Tessa (Enhanced)', 'Tessa',
-    'Martha', 'Zoe', 'Fiona (Enhanced)', 'Fiona',
+    'Veena (Enhanced)', 'Veena',
+    'Ava (Enhanced)', 'Ava',
+    'Samantha (Enhanced)', 'Samantha',
+    'Zoe (Enhanced)', 'Zoe',
+    'Karen (Enhanced)', 'Karen',
+    'Moira (Enhanced)', 'Moira',
+    'Tessa (Enhanced)', 'Tessa',
     'Google UK English Female', 'Google US English',
     'Microsoft Zira', 'Microsoft Jenny'
   ];
@@ -92,14 +96,15 @@ function findBestVoice() {
     const v = voices.find(v => v.name.includes(name));
     if (v) return v;
   }
-  // Fallback: any female-sounding English voice
+  // Fallback: any English voice
   const english = voices.filter(v => v.lang.startsWith('en'));
-  return english.find(v => /female|woman|samantha|karen|zira|jenny/i.test(v.name)) || english[0] || voices[0];
+  return english[0] || voices[0];
 }
 
 // Load voices (async on some browsers)
 speechSynthesis.onvoiceschanged = () => { bestVoice = findBestVoice(); };
 setTimeout(() => { if (!bestVoice) bestVoice = findBestVoice(); }, 500);
+setTimeout(() => { if (!bestVoice) bestVoice = findBestVoice(); }, 1500);
 
 function saveKey() {
   const key = document.getElementById('api-key').value.trim();
@@ -213,14 +218,23 @@ async function sendMessage(text) {
 function speak(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  if (bestVoice) utter.voice = bestVoice;
-  utter.rate = 0.95;
-  utter.pitch = 1.05;
-  utter.volume = 1;
-  speaking = true;
-  utter.onend = () => speaking = false;
-  window.speechSynthesis.speak(utter);
+  setTimeout(() => {
+    const utter = new SpeechSynthesisUtterance(text);
+    if (bestVoice) utter.voice = bestVoice;
+    utter.rate = 0.95;
+    utter.pitch = 1.05;
+    utter.volume = 1;
+    speaking = true;
+    utter.onend = () => speaking = false;
+    utter.onerror = () => speaking = false;
+    window.speechSynthesis.speak(utter);
+    // iOS fix: speech pauses after 15s, this keeps it alive
+    const keepAlive = setInterval(() => {
+      if (!speechSynthesis.speaking) { clearInterval(keepAlive); return; }
+      speechSynthesis.pause();
+      speechSynthesis.resume();
+    }, 10000);
+  }, 100);
 }
 
 // Init

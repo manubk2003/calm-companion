@@ -47,6 +47,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;
 <div id="chat">
 <button id="voice-toggle" onclick="toggleVoice()">🔊 Voice on</button>
 <button id="reset-key" onclick="resetKey()">⚙️</button>
+<button id="test-voice" onclick="testVoice()" style="position:absolute;top:8px;left:50%;transform:translateX(-50%);background:none;border:1px solid #444;color:#aaa;font-size:0.7rem;padding:4px 8px;border-radius:4px;cursor:pointer">🔊 Test</button>
 <div id="messages"></div>
 <div id="mic-status"></div>
 <div id="input-area">
@@ -240,19 +241,37 @@ async function sendMessage(text) {
 function speak(text) {
   if (!voiceOn || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
+  // iOS requires speech from user gesture context - small delay helps
   setTimeout(() => {
     const utter = new SpeechSynthesisUtterance(text);
+    // On iOS, sometimes setting a voice breaks it — try without if voice fails
     if (bestVoice) utter.voice = bestVoice;
+    utter.lang = 'en-US';
     utter.rate = 0.92;
     utter.pitch = 1.05;
     utter.volume = 1;
+    utter.onerror = () => {
+      // Retry without specific voice
+      const retry = new SpeechSynthesisUtterance(text);
+      retry.lang = 'en-US';
+      retry.rate = 0.92;
+      retry.pitch = 1.05;
+      window.speechSynthesis.speak(retry);
+    };
     window.speechSynthesis.speak(utter);
-    const keepAlive = setInterval(() => {
-      if (!speechSynthesis.speaking) { clearInterval(keepAlive); return; }
-      speechSynthesis.pause();
-      speechSynthesis.resume();
-    }, 10000);
-  }, 100);
+  }, 50);
+}
+
+function testVoice() {
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance("Hey, can you hear me?");
+  utter.lang = 'en-US';
+  utter.rate = 0.92;
+  utter.pitch = 1.05;
+  utter.volume = 1;
+  if (bestVoice) utter.voice = bestVoice;
+  window.speechSynthesis.speak(utter);
+  setMicStatus("Voice: " + (bestVoice ? bestVoice.name : "default"));
 }
 
 // Init

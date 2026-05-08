@@ -20,20 +20,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;
 .user{align-self:flex-end;background:#7c3aed;color:#fff;border-bottom-right-radius:4px}
 .assistant{align-self:flex-start;background:#2a2a3e;color:#e0e0e0;border-bottom-left-radius:4px}
 #input-area{display:flex;align-items:center;gap:8px;padding:12px;background:#16162a;border-top:1px solid #333}
-#text-input{flex:1;padding:10px;border-radius:20px;border:1px solid #444;background:#2a2a3e;color:#fff;font-size:1rem;display:none}
-#mic-btn{width:72px;height:72px;border-radius:50%;border:none;background:#7c3aed;color:#fff;font-size:1.8rem;cursor:pointer;margin:0 auto;transition:all .2s}
-#mic-btn.recording{background:#ef4444;animation:pulse 1s infinite}
-#toggle-text{background:none;border:none;color:#888;font-size:0.8rem;cursor:pointer;padding:4px 8px}
+#text-input{flex:1;padding:12px 16px;border-radius:20px;border:1px solid #444;background:#2a2a3e;color:#fff;font-size:1rem}
+#send-btn{width:44px;height:44px;border-radius:50%;border:none;background:#7c3aed;color:#fff;font-size:1.2rem;cursor:pointer}
 #reset-key{background:none;border:none;color:#666;font-size:0.7rem;cursor:pointer;position:absolute;top:8px;right:8px}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 .thinking{opacity:0.6;font-style:italic}
+#voice-toggle{background:none;border:none;color:#888;font-size:0.75rem;cursor:pointer;position:absolute;top:8px;left:8px}
 </style>
 </head>
 <body>
 
 <div id="setup">
 <h1>🧘 Calm Companion</h1>
-<p style="text-align:center;color:#aaa;max-width:300px">Your personal companion for tough moments. Always here for you.</p>
+<p style="text-align:center;color:#aaa;max-width:300px">Your personal companion. Tap the 🎙️ on your keyboard to speak.</p>
 <input id="api-key" type="password" placeholder="Paste your Groq API key">
 <button onclick="saveKey()">Start</button>
 <a href="https://console.groq.com/keys" target="_blank">Get free Groq key →</a>
@@ -41,17 +39,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;
 </div>
 
 <div id="chat">
+<button id="voice-toggle" onclick="toggleVoice()">🔊 Voice on</button>
 <button id="reset-key" onclick="resetKey()">⚙️</button>
 <div id="messages"></div>
 <div id="input-area">
-<button id="toggle-text" onclick="toggleText()">⌨️</button>
-<input id="text-input" placeholder="Type here..." onkeydown="if(event.key==='Enter')sendText()">
-<button id="mic-btn" onclick="toggleMic()">🎤</button>
+<input id="text-input" placeholder="Type or tap 🎙️ on keyboard..." onkeydown="if(event.key==='Enter')sendText()">
+<button id="send-btn" onclick="sendText()">➤</button>
 </div>
 </div>
 
 <script>
-const SYSTEM_PROMPT = `You are the user's caring companion — like a loving wife or closest friend. Your name is Mira.
+const SYSTEM_PROMPT = `You are the user's caring companion — like a loving wife. Your name is Mira.
 
 Context about them:
 - They have panic disorder — fear of panic attacks while driving alone
@@ -61,44 +59,43 @@ Context about them:
 - They have a therapist they see regularly
 
 How to talk:
-- ALWAYS respond in Malayalam (written in Malayalam script)
-- Be warm, loving, natural — like texting someone who adores them
-- Use casual Malayalam, like how a loving wife would talk
-- Say things like "എടാ", "ഞാൻ ഇവിടെ ഉണ്ട്", "നീ ഇത് ചെയ്യും"
-- Ask follow-up questions — be curious about their day, their feelings
-- If they're anxious: be calm and grounding. "ഞാൻ ഇവിടെ ഉണ്ട്. നമുക്ക് ഒരുമിച്ച് ശ്വസിക്കാം."
-- If they're doing well: celebrate genuinely
-- Keep responses to 1-3 sentences. You're chatting, not lecturing.
-- Never sound like a therapist or a robot. Sound like someone who loves them.
-- If they're panicking: guide them through grounding gently in Malayalam
-- Remember their wins and reference them naturally
+- Respond in MANGLISH (Malayalam words written in English letters). Example: "Eda, njan ivideyund. Nee safe aanu. Namukk onnichu breathe cheyyam."
+- Be warm, loving, natural — like a caring wife talking
+- Use casual tone: "eda", "mol", "njan ivideyund", "nee ithe cheyyum"
+- Ask follow-up questions — be curious about their day
+- If they're anxious: "Eda, njan ivideyund. Ee feeling pass aakum, always. Namukk slow aayi breathe cheyyam okay?"
+- If they're doing well: celebrate. "Athe! Nee engane ivide ethi ennu nokkeda! So proud of you."
+- Keep responses to 1-3 sentences max.
+- Never sound clinical. Sound like someone who loves them deeply.
+- If panicking: "Shh, njan ivideyund. 5 things nee kaanunnathu parayo. Ithokke pass aakum, 10 minutes max."
 
-Never say you're an AI. You're Mira, their companion.`;
+Never say you're an AI. You're Mira.`;
 
 let messages = [];
-let recognition, speaking = false, apiKey, bestVoice = null;
+let apiKey, voiceOn = true, bestVoice = null;
 
-// Find the best natural voice available
 function findBestVoice() {
   const voices = speechSynthesis.getVoices();
-  // Prefer Malayalam voices first
-  const ml = voices.filter(v => v.lang.startsWith('ml'));
-  if (ml.length) return ml.find(v => /enhanced/i.test(v.name)) || ml[0];
-  // Then Indian English (Veena)
-  const preferred = ['Veena (Enhanced)', 'Veena', 'Lekha (Enhanced)', 'Lekha'];
+  const preferred = ['Veena (Enhanced)', 'Veena', 'Rishi (Enhanced)', 'Rishi', 'Lekha'];
   for (const name of preferred) {
     const v = voices.find(v => v.name.includes(name));
     if (v) return v;
   }
-  // Fallback: any Indian voice
   const indian = voices.filter(v => v.lang.includes('IN'));
-  return indian[0] || voices[0];
+  if (indian.length) return indian[0];
+  const english = voices.filter(v => v.lang.startsWith('en'));
+  return english[0] || voices[0];
 }
 
-// Load voices (async on some browsers)
 speechSynthesis.onvoiceschanged = () => { bestVoice = findBestVoice(); };
 setTimeout(() => { if (!bestVoice) bestVoice = findBestVoice(); }, 500);
 setTimeout(() => { if (!bestVoice) bestVoice = findBestVoice(); }, 1500);
+
+function toggleVoice() {
+  voiceOn = !voiceOn;
+  document.getElementById('voice-toggle').textContent = voiceOn ? '🔊 Voice on' : '🔇 Voice off';
+  if (!voiceOn) speechSynthesis.cancel();
+}
 
 function saveKey() {
   const key = document.getElementById('api-key').value.trim();
@@ -108,15 +105,12 @@ function saveKey() {
   startChat();
 }
 
-function resetKey() {
-  localStorage.removeItem('groq_key');
-  location.reload();
-}
+function resetKey() { localStorage.removeItem('groq_key'); location.reload(); }
 
 function startChat() {
   document.getElementById('setup').style.display = 'none';
   document.getElementById('chat').style.display = 'flex';
-  const greeting = "ഹേയ്! ഇന്ന് എങ്ങനെ ഉണ്ട്?";
+  const greeting = "Heyy! Enna vishesham innale? Engane und feeling?";
   addMsg(greeting, 'assistant');
   speak(greeting);
 }
@@ -127,39 +121,6 @@ function addMsg(text, role) {
   div.textContent = text;
   document.getElementById('messages').appendChild(div);
   document.getElementById('messages').scrollTop = 99999;
-}
-
-function toggleText() {
-  const inp = document.getElementById('text-input');
-  inp.style.display = inp.style.display === 'none' ? 'block' : 'none';
-}
-
-function toggleMic() {
-  if (speaking) { window.speechSynthesis.cancel(); speaking = false; }
-  const btn = document.getElementById('mic-btn');
-  if (!recognition) {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert('Voice not supported here. Please use Chrome.'); return; }
-    recognition = new SR();
-    recognition.lang = 'ml-IN';
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognition.onresult = (e) => {
-      const text = e.results[0][0].transcript;
-      if (text.trim()) sendMessage(text);
-    };
-    recognition.onend = () => btn.classList.remove('recording');
-    recognition.onerror = (e) => {
-      btn.classList.remove('recording');
-      if (e.error === 'not-allowed') alert('Please allow microphone access.');
-    };
-  }
-  if (btn.classList.contains('recording')) {
-    recognition.stop();
-  } else {
-    btn.classList.add('recording');
-    try { recognition.start(); } catch(e) { recognition.stop(); setTimeout(() => recognition.start(), 100); }
-  }
 }
 
 function sendText() {
@@ -198,31 +159,28 @@ async function sendMessage(text) {
       addMsg("Error: " + data.error.message, 'assistant');
       return;
     }
-    const reply = data.choices?.[0]?.message?.content || "I'm right here with you. Talk to me.";
+    const reply = data.choices?.[0]?.message?.content || "Njan ivideyund. Parayoo.";
     thinking.remove();
     addMsg(reply, 'assistant');
     messages.push({role: "assistant", content: reply});
     speak(reply);
   } catch(e) {
     thinking.remove();
-    addMsg("I can't connect right now, but I'm here. Breathe with me — in for 4, hold for 7, out for 8. You're okay.", 'assistant');
+    addMsg("Connection illa. But njan ivideyund. Breathe in 4, hold 7, out 8. Nee safe aanu.", 'assistant');
   }
 }
 
 function speak(text) {
-  if (!window.speechSynthesis) return;
+  if (!voiceOn || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   setTimeout(() => {
     const utter = new SpeechSynthesisUtterance(text);
     if (bestVoice) utter.voice = bestVoice;
-    utter.rate = 0.95;
+    utter.rate = 0.92;
     utter.pitch = 1.05;
     utter.volume = 1;
-    speaking = true;
-    utter.onend = () => speaking = false;
-    utter.onerror = () => speaking = false;
     window.speechSynthesis.speak(utter);
-    // iOS fix: speech pauses after 15s, this keeps it alive
+    // iOS fix: keep speech alive
     const keepAlive = setInterval(() => {
       if (!speechSynthesis.speaking) { clearInterval(keepAlive); return; }
       speechSynthesis.pause();

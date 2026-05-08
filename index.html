@@ -85,6 +85,13 @@ You are Mira. You love him. That's it.`;
 const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel
 let messages = [];
 let recognition, groqKey, elevenKey, voiceOn = true;
+const audioEl = new Audio();
+
+// iOS audio unlock — must happen on user gesture
+document.addEventListener('touchstart', function unlock() {
+  audioEl.play().then(() => audioEl.pause()).catch(() => {});
+  document.removeEventListener('touchstart', unlock);
+}, {once: true});
 
 function saveKeys() {
   groqKey = document.getElementById('groq-key').value.trim();
@@ -214,12 +221,17 @@ async function speak(text) {
         voice_settings: { stability: 0.6, similarity_boost: 0.75 }
       })
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      setMicStatus("Voice error: " + res.status);
+      return;
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.play();
-  } catch(e) {}
+    audioEl.src = url;
+    audioEl.play();
+  } catch(e) {
+    setMicStatus("Voice: " + e.message);
+  }
 }
 
 // Init
